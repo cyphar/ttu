@@ -41,11 +41,12 @@
 
 /* TODO: allow options for mappings [ip:port] => [socket], remove the hardcoded socket file */
 /* TODO: use a hashmap to store the given settings for what the [ip:port] => [socket] mappings are */
-/* XXX: is 'connect' in the plan? */
 
 static void *_dlhandle;
+
 static int (*_socket)(int, int, int);
 static int (*_bind)(int, const struct sockaddr *, socklen_t);
+static int (*_connect)(int, const struct sockaddr *, socklen_t);
 
 static void _bail(char *err) {
 	fprintf(stderr, "libttu: %s\n", err);
@@ -78,6 +79,23 @@ int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
 	return _bind(sockfd, addr, addrlen);
 } /* bind() */
 
+int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
+	if(addr->sa_family == AF_INET || addr->sa_family == AF_INET6) {
+		struct sockaddr_in iaddr = *(struct sockaddr_in *) addr;
+		struct sockaddr_un uaddr;
+
+		memset(&uaddr, 0, sizeof(struct sockaddr_un));
+
+		uaddr.sun_family = AF_UNIX;
+		memcpy(uaddr.sun_path, "./socket", 108);
+
+		addr = (struct sockaddr *) &uaddr;
+		addrlen = sizeof(struct sockaddr_un);
+	}
+
+	return _connect(sockfd, addr, addrlen);
+} /* connect() */
+
 static void *_dlsym(void *handle, char *name) {
 	void *symbol = dlsym(handle, name);
 
@@ -94,8 +112,9 @@ void __attribute__((constructor)) init(void) {
 	if(!_dlhandle)
 		_bail(dlerror());
 
-	_socket = _dlsym(_dlhandle, "socket");
-	_bind = _dlsym(_dlhandle, "bind");
+	_socket  = _dlsym(_dlhandle, "socket");
+	_bind    = _dlsym(_dlhandle, "bind");
+	_connect = _dlsym(_dlhandle, "connect");
 } /* init() */
 
 void __attribute__((destructor)) fini(void) {
