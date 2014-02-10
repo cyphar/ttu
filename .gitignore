@@ -1,0 +1,11 @@
+# Project executables
+ttu
+
+# Generic exectuables
+*.o
+*.out
+*.so
+
+# Swap files
+*.swp
+*~
