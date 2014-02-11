@@ -1,0 +1,41 @@
+#!/bin/sh
+
+GETOPT=$(getopt -o 'l:b:c:' -l 'library,bind-map,connect-map' -- "$@")
+
+eval set -- "$GETOPT"
+
+CONNECTS=""
+BINDS=""
+LIBTTU="$(pwd)/libttu.so"
+
+while true; do
+	case "$1" in
+		-l|--library)
+			case "$2" in
+				"")
+					echo "-l requires an argument" >2
+					exit 1 ;;
+				*)
+					LIBTTU="$2"
+					shift 2 ;;
+			esac ;;
+		-b|--bind-map)
+			BINDS="$2"
+			shift 2 ;;
+		-c|--connect-map)
+			CONNECTS="$2"
+			shift 2 ;;
+		--)
+			shift
+			break ;;
+		*)
+			echo "invalid argument '$1'" >2
+			exit 1 ;;
+	esac
+done
+
+export LD_PRELOAD="$LIBTTU"
+export TTU_BINDS="$BINDS"
+export TTU_CONNECTS="$CONNECTS"
+
+exec $@
