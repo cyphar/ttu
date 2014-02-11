@@ -1,0 +1,3 @@
+List of known bugs:
+
+1. TTU seems to break netcat.openbsd on Ubuntu (but not on Arch). Netcat never calls send() and just waits.
