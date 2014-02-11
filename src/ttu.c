@@ -44,9 +44,6 @@
 
 #define _lenprintf(fmt, ...) (snprintf(NULL, 0, fmt, __VA_ARGS__) + 1)
 
-/* TODO: allow options for mappings [ip:port] => [socket], remove the hardcoded socket file */
-/* TODO: use a hashmap to store the given settings for what the [ip:port] => [socket] mappings are */
-
 static void *_dlhandle;
 
 static int (*_bind)(int, const struct sockaddr *, socklen_t);
