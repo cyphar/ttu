@@ -69,11 +69,13 @@ static char *_intos(struct in_addr addr, in_port_t port) {
 
 static int _ttusock(int sockfd) {
 	int newsockfd = 0,
-		socktp = 0,
-		size = sizeof(int);
+		socktp = 0;
+
+	socklen_t size = sizeof(int);
 
 	getsockopt(sockfd, SOL_SOCKET, SO_TYPE, &socktp, &size);
 	newsockfd = socket(AF_UNIX, socktp, 0);
+
 	return dup2(newsockfd, sockfd);
 } /* _ttusock() */
 
