@@ -39,41 +39,68 @@
 
 #include <dlfcn.h>
 
+#include <ohmic.h>
+#include <ttu.h>
+
+#define _lenprintf(fmt, ...) (snprintf(NULL, 0, fmt, __VA_ARGS__) + 1)
+
 /* TODO: allow options for mappings [ip:port] => [socket], remove the hardcoded socket file */
 /* TODO: use a hashmap to store the given settings for what the [ip:port] => [socket] mappings are */
 
 static void *_dlhandle;
 
-static int (*_socket)(int, int, int);
 static int (*_bind)(int, const struct sockaddr *, socklen_t);
 static int (*_connect)(int, const struct sockaddr *, socklen_t);
+
+static struct ohm_t *_bindmap = NULL;
+static struct ohm_t *_connectmap = NULL;
 
 static void _bail(char *err) {
 	fprintf(stderr, "libttu: %s\n", err);
 	abort();
 } /* _bail() */
 
-int socket(int domain, int type, int protocol) {
-	if(domain == AF_INET || domain == AF_INET6) {
-		domain = AF_UNIX;
-		protocol = 0;
-	}
+static char *_intos(struct in_addr addr, in_port_t port) {
+	char *saddr = inet_ntoa(addr);
+	port = htons(port);
 
-	return _socket(domain, type, protocol);
-} /* socket() */
+	char *key = malloc(_lenprintf("%s:%d", saddr, port));
+	sprintf(key, "%s:%d", saddr, port);
+
+	return key;
+} /* _intos() */
+
+static int _ttusock(int sockfd) {
+	int newsockfd = 0,
+		socktp = 0,
+		size = sizeof(int);
+
+	getsockopt(sockfd, SOL_SOCKET, SO_TYPE, &socktp, &size);
+	newsockfd = socket(AF_UNIX, socktp, 0);
+	return dup2(newsockfd, sockfd);
+} /* _ttusock() */
 
 int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
 	if(addr->sa_family == AF_INET || addr->sa_family == AF_INET6) {
-		struct sockaddr_in iaddr = *(struct sockaddr_in *) addr;
-		struct sockaddr_un uaddr;
+		struct sockaddr_in *iaddr = (struct sockaddr_in *) addr;
 
-		memset(&uaddr, 0, sizeof(struct sockaddr_un));
+		char *key = _intos(iaddr->sin_addr, iaddr->sin_port),
+			 *sockfile = ohm_search(_bindmap, key, strlen(key) + 1);
 
-		uaddr.sun_family = AF_UNIX;
-		memcpy(uaddr.sun_path, "./socket", 108);
+		if(sockfile != NULL) {
+			struct sockaddr_un uaddr;
 
-		addr = (struct sockaddr *) &uaddr;
-		addrlen = sizeof(struct sockaddr_un);
+			memset(&uaddr, 0, sizeof(struct sockaddr_un));
+
+			uaddr.sun_family = AF_UNIX;
+			memcpy(uaddr.sun_path, sockfile, 108);
+
+			addr = (struct sockaddr *) &uaddr;
+			addrlen = sizeof(struct sockaddr_un);
+			_ttusock(sockfd);
+		}
+
+		free(key);
 	}
 
 	return _bind(sockfd, addr, addrlen);
@@ -81,16 +108,25 @@ int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
 
 int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
 	if(addr->sa_family == AF_INET || addr->sa_family == AF_INET6) {
-		struct sockaddr_in iaddr = *(struct sockaddr_in *) addr;
-		struct sockaddr_un uaddr;
+		struct sockaddr_in *iaddr = (struct sockaddr_in *) addr;
 
-		memset(&uaddr, 0, sizeof(struct sockaddr_un));
+		char *key = _intos(iaddr->sin_addr, iaddr->sin_port),
+			 *sockfile = ohm_search(_connectmap, key, strlen(key) + 1);
 
-		uaddr.sun_family = AF_UNIX;
-		memcpy(uaddr.sun_path, "./socket", 108);
+		if(sockfile != NULL) {
+			struct sockaddr_un uaddr;
 
-		addr = (struct sockaddr *) &uaddr;
-		addrlen = sizeof(struct sockaddr_un);
+			memset(&uaddr, 0, sizeof(struct sockaddr_un));
+
+			uaddr.sun_family = AF_UNIX;
+			memcpy(uaddr.sun_path, sockfile, 108);
+
+			addr = (struct sockaddr *) &uaddr;
+			addrlen = sizeof(struct sockaddr_un);
+			_ttusock(sockfd);
+		}
+
+		free(key);
 	}
 
 	return _connect(sockfd, addr, addrlen);
@@ -106,15 +142,55 @@ static void *_dlsym(void *handle, char *name) {
 	return symbol;
 } /* _dlsym() */
 
+static char *_strdup(char *s) {
+	int len = strlen(s);
+	char *ret = malloc(len + 1);
+
+	strncpy(ret, s, len);
+	ret[len] = '\0';
+
+	return ret;
+} /* _strdup() */
+
+static void _etohm(struct ohm_t *hm, char *env) {
+	if(!env)
+		return;
+
+	env = _strdup(env);
+
+	char *current = strtok(env, ",");
+	while(current) {
+		char *addr = strtok(current, "="),
+			 *sockfile = strtok(NULL, "=");
+
+		if(!addr || !sockfile)
+			break;
+
+		ohm_insert(hm, addr, strlen(addr) + 1, sockfile, strlen(sockfile) + 1);
+		current = strtok(NULL, ",");
+	}
+
+	free(env);
+} /* _etohm() */
+
 void __attribute__((constructor)) init(void) {
 	_dlhandle = dlopen("libc.so.6", RTLD_LAZY | RTLD_LOCAL);
 
 	if(!_dlhandle)
 		_bail(dlerror());
 
-	_socket  = _dlsym(_dlhandle, "socket");
 	_bind    = _dlsym(_dlhandle, "bind");
 	_connect = _dlsym(_dlhandle, "connect");
+
+	_bindmap    = ohm_init(4, NULL);
+	_connectmap = ohm_init(4, NULL);
+
+	_etohm(_bindmap, getenv(TTU_BIND_ENV));
+	_etohm(_connectmap, getenv(TTU_CONNECT_ENV));
+
+	struct ohm_iter ii = ohm_iter_init(_bindmap);
+	for(ii = ohm_iter_init(_bindmap); ii.key != NULL; ohm_iter_inc(&ii))
+		unlink(ii.value);
 } /* init() */
 
 void __attribute__((destructor)) fini(void) {
@@ -123,5 +199,10 @@ void __attribute__((destructor)) fini(void) {
 	if(err)
 		_bail(dlerror());
 
-	unlink("./socket");
+	struct ohm_iter ii = ohm_iter_init(_bindmap);
+	for(ii = ohm_iter_init(_bindmap); ii.key != NULL; ohm_iter_inc(&ii))
+		unlink(ii.value);
+
+	ohm_free(_bindmap);
+	ohm_free(_connectmap);
 } /* fini() */
