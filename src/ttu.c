@@ -64,7 +64,8 @@ static char *ssprintf(char *fmt, ...) {
 	int len = vsnprintf(NULL, 0, fmt, ap);
 	char *str = malloc(len + 1);
 
-	vsprintf(str, fmt, ap);
+	va_start(ap, fmt);
+	vsnprintf(str, len, fmt, ap);
 	str[len] = '\0';
 
 	va_end(ap);
@@ -92,11 +93,6 @@ static char *_find_sockmap(struct ohm_t *map, struct in_addr addr, in_port_t por
 		 *m_host  = ssprintf("%s:*", host),
 		 *m_any   = ssprintf("*:*");
 
-	fprintf(stderr, "exact: %s\n", m_exact);
-	fprintf(stderr, "port: %s\n", m_port);
-	fprintf(stderr, "host: %s\n", m_host);
-	fprintf(stderr, "any: %s\n", m_any);
-
 	char *sockfile = ohm_search(map, m_exact, strlen(m_exact) + 1);
 
 	if(!sockfile)
@@ -108,7 +104,6 @@ static char *_find_sockmap(struct ohm_t *map, struct in_addr addr, in_port_t por
 	if(!sockfile)
 		sockfile = ohm_search(map, m_any, strlen(m_any) + 1);
 
-	fprintf(stderr, "file: %s\n", sockfile);
 	return sockfile;
 } /* _find_sockmap() */
 
