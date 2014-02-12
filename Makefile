@@ -38,18 +38,24 @@ INCLUDE		?= $(wildcard $(DINCLUDE)/*.h)
 IDLIB		?= /usr/lib
 IDBIN		?= /usr/bin
 
-.PHONY: all clean
+.PHONY: all debug clean
 
 all: clean $(LNAME) $(WNAME)
+debug: clean debug-lib debug-wrap
+
 
 # Build normal libttu.so binary.
 $(LNAME): $(SRC) $(INCLUDE)
 	$(CC) $(CFLAGS) $(SRC) $(LFLAGS) -I$(DINCLUDE)/ -o $(LNAME) $(WARNINGS)
 	strip $(LNAME)
 
+$(WNAME):
+
 # Build debug libttu.so binary.
 debug-lib: $(SRC) $(INCLUDE)
 	$(CC) -O0 -ggdb $(CFLAGS) $(SRC) $(LFLAGS) -I$(DINCLUDE)/ -o $(LNAME) $(WARNINGS)
+
+debug-wrap:
 
 # Install binaries.
 install: $(NAME)
