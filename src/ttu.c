@@ -24,6 +24,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <unistd.h>
 
 #include <string.h>
@@ -42,8 +43,6 @@
 #include <ohmic.h>
 #include <ttu.h>
 
-#define _lenprintf(fmt, ...) (snprintf(NULL, 0, fmt, __VA_ARGS__) + 1)
-
 static void *_dlhandle;
 
 static int (*_bind)(int, const struct sockaddr *, socklen_t);
@@ -57,15 +56,20 @@ static void _bail(char *err) {
 	abort();
 } /* _bail() */
 
-static char *_intos(struct in_addr addr, in_port_t port) {
-	char *saddr = inet_ntoa(addr);
-	port = htons(port);
+/* "safe" wrapper to sprintf -- returns proper length string */
+static char *ssprintf(char *fmt, ...) {
+	va_list ap;
+	va_start(ap, fmt);
 
-	char *key = malloc(_lenprintf("%s:%d", saddr, port));
-	sprintf(key, "%s:%d", saddr, port);
+	int len = vsnprintf(NULL, 0, fmt, ap);
+	char *str = malloc(len + 1);
 
-	return key;
-} /* _intos() */
+	vsprintf(str, fmt, ap);
+	str[len] = '\0';
+
+	va_end(ap);
+	return str;
+} /* ssprintf() */
 
 static int _ttusock(int sockfd) {
 	int newsockfd = 0,
@@ -79,12 +83,39 @@ static int _ttusock(int sockfd) {
 	return dup2(newsockfd, sockfd);
 } /* _ttusock() */
 
+static char *_find_sockmap(struct ohm_t *map, struct in_addr addr, in_port_t port) {
+	char *host = inet_ntoa(addr);
+
+	/* possible keys, in order of preference */
+	char *m_exact = ssprintf("%s:%d", host, port),
+		 *m_port  = ssprintf("*:%d", port),
+		 *m_host  = ssprintf("%s:*", host),
+		 *m_any   = ssprintf("*:*");
+
+	fprintf(stderr, "exact: %s\n", m_exact);
+	fprintf(stderr, "port: %s\n", m_port);
+	fprintf(stderr, "host: %s\n", m_host);
+	fprintf(stderr, "any: %s\n", m_any);
+
+	char *sockfile = ohm_search(map, m_exact, strlen(m_exact) + 1);
+
+	if(!sockfile)
+		sockfile = ohm_search(map, m_port, strlen(m_port) + 1);
+
+	if(!sockfile)
+		sockfile = ohm_search(map, m_host, strlen(m_host) + 1);
+
+	if(!sockfile)
+		sockfile = ohm_search(map, m_any, strlen(m_any) + 1);
+
+	fprintf(stderr, "file: %s\n", sockfile);
+	return sockfile;
+} /* _find_sockmap() */
+
 int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
 	if(addr->sa_family == AF_INET || addr->sa_family == AF_INET6) {
 		struct sockaddr_in *iaddr = (struct sockaddr_in *) addr;
-
-		char *key = _intos(iaddr->sin_addr, iaddr->sin_port),
-			 *sockfile = ohm_search(_bindmap, key, strlen(key) + 1);
+		char *sockfile = _find_sockmap(_bindmap, iaddr->sin_addr, htons(iaddr->sin_port));
 
 		if(sockfile != NULL) {
 			struct sockaddr_un uaddr;
@@ -98,8 +129,6 @@ int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
 			addrlen = sizeof(struct sockaddr_un);
 			_ttusock(sockfd);
 		}
-
-		free(key);
 	}
 
 	return _bind(sockfd, addr, addrlen);
@@ -108,9 +137,7 @@ int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
 int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
 	if(addr->sa_family == AF_INET || addr->sa_family == AF_INET6) {
 		struct sockaddr_in *iaddr = (struct sockaddr_in *) addr;
-
-		char *key = _intos(iaddr->sin_addr, iaddr->sin_port),
-			 *sockfile = ohm_search(_connectmap, key, strlen(key) + 1);
+		char *sockfile = _find_sockmap(_connectmap, iaddr->sin_addr, htons(iaddr->sin_port));
 
 		if(sockfile != NULL) {
 			struct sockaddr_un uaddr;
@@ -124,8 +151,6 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
 			addrlen = sizeof(struct sockaddr_un);
 			_ttusock(sockfd);
 		}
-
-		free(key);
 	}
 
 	return _connect(sockfd, addr, addrlen);
@@ -162,10 +187,22 @@ static void _etohm(struct ohm_t *hm, char *env) {
 		char *addr = strtok(current, "="),
 			 *sockfile = strtok(NULL, "=");
 
-		if(!addr || !sockfile)
+		char *ahost = strtok(addr, ":"),
+			 *aport = strtok(NULL, ":");
+
+		if(!addr || !sockfile || !ahost || !aport)
 			break;
 
+		if(!strlen(ahost))
+			ahost = "*";
+
+		if(!strlen(aport))
+			aport = "*";
+
+		addr = ssprintf("%s:%s", ahost, aport);
 		ohm_insert(hm, addr, strlen(addr) + 1, sockfile, strlen(sockfile) + 1);
+
+		free(addr);
 		current = strtok(NULL, ",");
 	}
 
