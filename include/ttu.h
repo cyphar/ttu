@@ -28,5 +28,5 @@
  *     socket is a (mandatory) socket file to map
  */
 
-#define TTU_BIND_ENV	"TTU_BINDS"
-#define TTU_CONNECT_ENV	"TTU_CONNECTS"
+#define TTU_BIND_ENV	"TTU_BIND"
+#define TTU_CONNECT_ENV	"TTU_CONNECT"
