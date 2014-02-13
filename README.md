@@ -53,7 +53,7 @@ Where:
 * `port` is the port of the inet socket (optional, defaults to `*`).
 * `/path/to/socket.sock` is the path to the socket (mandatory, the path is *recommended* to be an absolute path [to avoid `chdir(2)` problems])
 
-In the above options, `*` indicates 'any' of the field. The order of preference in finding a socket to bind to is as follows:
+In the above options, `*` acts as a wildcard. The order of preference in finding a socket to bind to is as follows:
 
 1. The exact match of `ip:port` in the parameters.
 2. The wildcard match of `*:port` in the parameters.
@@ -61,4 +61,4 @@ In the above options, `*` indicates 'any' of the field. The order of preference 
 4. The wilcard match of `*:*` in the parameters.
 5. Passthrough and allow the socket to bind normally (no remapping).
 
-If several different paramaters have the same or equivalent mapping (such as `0.0.0.0:80=/tmp/a,0.0.0.0:80=/tmp/b` or `*:*=/tmp/a,*:*=/tmp/b`), the socket file chosen is undefined.
+If several different paramaters have the same mapping (such as `0.0.0.0:80=/tmp/a,0.0.0.0:80=/tmp/b` or `*:*=/tmp/a,*:*=/tmp/b`), the last mapping in the option is obeyed.
