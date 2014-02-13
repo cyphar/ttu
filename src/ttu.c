@@ -52,9 +52,34 @@ static struct ohm_t *_bindmap = NULL;
 static struct ohm_t *_connectmap = NULL;
 
 static void _bail(char *err) {
-	fprintf(stderr, "libttu: %s\n", err);
+	fprintf(stderr, "[E] libttu: %s\n", err);
+	fflush(stderr);
+
 	abort();
 } /* _bail() */
+
+static void _warn(char *fmt, ...) {
+	va_list ap;
+	va_start(ap, fmt);
+
+	fprintf(stderr, "[W] libttu: ");
+	vfprintf(stderr, fmt, ap);
+	fflush(stderr);
+
+	va_end(ap);
+} /* _warn() */
+
+static int _chrnstr(char *str, char ch) {
+	if(!str)
+		return -1;
+
+	int i, count = 0, len = strlen(str);
+	for(i = 0; i < len; i++)
+		if(str[i] == ch)
+			count++;
+
+	return count;
+} /* _chrnstr() */
 
 /* "safe" wrapper to sprintf -- returns proper length string */
 static char *ssprintf(char *fmt, ...) {
@@ -178,28 +203,45 @@ static void _etohm(struct ohm_t *hm, char *env) {
 	env = _strdup(env);
 
 	char *current = strtok(env, ",");
-	while(current) {
+	if(!current) {
+		free(env);
+		return;
+	}
+
+	do {
+		if(_chrnstr(current, '=') != 1) {
+			_warn("ignoring phony argument: %s\n", current);
+			continue;
+		}
+
 		char *addr = strtok(current, "="),
 			 *sockfile = strtok(NULL, "=");
+
+		if(_chrnstr(addr, ':') != 1) {
+			_warn("ignoring phony argument: %s\n", addr);
+			continue;
+		}
 
 		char *ahost = strtok(addr, ":"),
 			 *aport = strtok(NULL, ":");
 
-		if(!addr || !sockfile || !ahost || !aport)
+		if(!sockfile)
 			break;
 
-		if(!strlen(ahost))
+		if(!ahost)
 			ahost = "*";
 
-		if(!strlen(aport))
+		if(!aport)
 			aport = "*";
+
+		fprintf(stderr, "after: '%s':'%s'='%s'\n", ahost, aport, sockfile);
 
 		addr = ssprintf("%s:%s", ahost, aport);
 		ohm_insert(hm, addr, strlen(addr) + 1, sockfile, strlen(sockfile) + 1);
 
 		free(addr);
-		current = strtok(NULL, ",");
-	}
+
+	} while((current = strtok(NULL, ",")));
 
 	free(env);
 } /* _etohm() */
