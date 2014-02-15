@@ -23,14 +23,19 @@ CC			?= gcc
 LNAME		?= libttu.so
 WNAME		?= ttu
 
-CFLAGS		?= -ansi -pipe -shared -fPIC
-LFLAGS		?= -ldl
+CLFLAGS		?= -ansi -pipe -shared -fPIC
+LLFLAGS		?= -ldl
+
+CWFLAGS		?= -ansi
+LWFLAGS		?=
+
 WARNINGS	?= -Wall -Wextra -Werror
 
 DSRC		?= src
 DINCLUDE	?= include
 
-SRC			?= $(wildcard $(DSRC)/*.c)
+WSRC		?= ttu.c
+LSRC		?= $(wildcard $(DSRC)/*.c)
 INCLUDE		?= $(wildcard $(DINCLUDE)/*.h)
 
 # Install directories.
@@ -45,17 +50,20 @@ debug: clean debug-lib debug-wrap
 
 
 # Build normal libttu.so binary.
-$(LNAME): $(SRC) $(INCLUDE)
-	$(CC) $(CFLAGS) $(SRC) $(LFLAGS) -I$(DINCLUDE)/ -o $(LNAME) $(WARNINGS)
+$(LNAME): $(LSRC) $(INCLUDE)
+	$(CC) $(CLFLAGS) $(LSRC) $(LLFLAGS) -I$(DINCLUDE)/ -o $(LNAME) $(WARNINGS)
 	strip $(LNAME)
 
-$(WNAME):
+$(WNAME): $(WSRC) $(INCLUDE)
+	$(CC) $(CWFLAGS) $(WSRC) $(LWFLAGS) -I$(DINCLUDE)/ -o $(WNAME) $(WARNINGS)
+	strip $(WNAME)
 
 # Build debug libttu.so binary.
 debug-lib: $(SRC) $(INCLUDE)
-	$(CC) -O0 -ggdb $(CFLAGS) $(SRC) $(LFLAGS) -I$(DINCLUDE)/ -o $(LNAME) $(WARNINGS)
+	$(CC) -O0 -ggdb $(CLFLAGS) $(LSRC) $(LLFLAGS) -I$(DINCLUDE)/ -o $(LNAME) $(WARNINGS)
 
 debug-wrap:
+	$(CC) -O0 -ggdb $(CWFLAGS) $(WSRC) $(LWFLAGS) -I$(DINCLUDE)/ -o $(WNAME) $(WARNINGS)
 
 # Install binaries.
 install: $(NAME)
