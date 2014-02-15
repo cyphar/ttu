@@ -54,6 +54,7 @@ $(LNAME): $(LSRC) $(INCLUDE)
 	$(CC) $(CLFLAGS) $(LSRC) $(LLFLAGS) -I$(DINCLUDE)/ -o $(LNAME) $(WARNINGS)
 	strip $(LNAME)
 
+# Build normal ttu binary.
 $(WNAME): $(WSRC) $(INCLUDE)
 	$(CC) $(CWFLAGS) $(WSRC) $(LWFLAGS) -I$(DINCLUDE)/ -o $(WNAME) $(WARNINGS)
 	strip $(WNAME)
@@ -62,11 +63,12 @@ $(WNAME): $(WSRC) $(INCLUDE)
 debug-lib: $(SRC) $(INCLUDE)
 	$(CC) -O0 -ggdb $(CLFLAGS) $(LSRC) $(LLFLAGS) -I$(DINCLUDE)/ -o $(LNAME) $(WARNINGS)
 
+# Build debug ttu binary.
 debug-wrap:
 	$(CC) -O0 -ggdb $(CWFLAGS) $(WSRC) $(LWFLAGS) -I$(DINCLUDE)/ -o $(WNAME) $(WARNINGS)
 
 # Install binaries.
-install: $(NAME)
+install: $(LNAME) $(WNAME)
 	@cp -v $(LNAME) $(IDLIB)/$(LNAME)
 	@cp -v $(WNAME) $(IDBIN)/$(WNAME)
 
@@ -75,4 +77,4 @@ uninstall:
 	@rm -fv $(IDLIB)/$(LNAME) $(IDBIN)/$(WNAME)
 
 clean:
-	rm -f $(LNAME)
+	rm -f $(LNAME) $(WNAME)
