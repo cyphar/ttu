@@ -51,18 +51,34 @@ static int (*_connect)(int, const struct sockaddr *, socklen_t);
 static struct ohm_t *_bindmap = NULL;
 static struct ohm_t *_connectmap = NULL;
 
-static void _bail(char *err) {
-	fprintf(stderr, "[E] libttu: %s\n", err);
+static void _bail(char *fmt, ...) {
+	va_list ap;
+	va_start(ap, fmt);
+
+	fprintf(stderr, "[E:libttu] ");
+	vfprintf(stderr, fmt, ap);
 	fflush(stderr);
 
+	va_end(ap);
 	abort();
-} /* _bail() */
+} /* _warn() */
 
 static void _warn(char *fmt, ...) {
 	va_list ap;
 	va_start(ap, fmt);
 
-	fprintf(stderr, "[W] libttu: ");
+	fprintf(stderr, "[W:libttu] ");
+	vfprintf(stderr, fmt, ap);
+	fflush(stderr);
+
+	va_end(ap);
+} /* _warn() */
+
+static void _info(char *fmt, ...) {
+	va_list ap;
+	va_start(ap, fmt);
+
+	fprintf(stderr, "[I:libttu] ");
 	vfprintf(stderr, fmt, ap);
 	fflush(stderr);
 
@@ -234,7 +250,7 @@ static void _etohm(struct ohm_t *hm, char *env) {
 		if(!aport)
 			aport = "*";
 
-		fprintf(stderr, "after: '%s':'%s'='%s'\n", ahost, aport, sockfile);
+		_info("add mapping: '%s:%s'='%s'\n", ahost, aport, sockfile);
 
 		addr = ssprintf("%s:%s", ahost, aport);
 		ohm_insert(hm, addr, strlen(addr) + 1, sockfile, strlen(sockfile) + 1);
