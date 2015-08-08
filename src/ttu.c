@@ -145,6 +145,10 @@ static char *_find_sockmap(struct ohm_t *map, struct in_addr addr, in_port_t por
 	if(!sockfile)
 		sockfile = ohm_search(map, m_any, strlen(m_any) + 1);
 
+	free(m_exact);
+	free(m_port);
+	free(m_host);
+	free(m_any);
 	return sockfile;
 } /* _find_sockmap() */
 
